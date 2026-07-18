@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>퍼시스 권역 시뮬레이터</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand-block">
+      <div class="brand-mark">F</div>
+      <div>
+        <p class="eyebrow">FURSYS TERRITORY PLANNING</p>
+        <h1>권역 편성 시뮬레이터</h1>
+      </div>
+    </div>
+    <div class="header-actions">
+      <label class="scenario-picker">저장된 시나리오
+        <select id="scenario-select"><option value="">선택</option></select>
+      </label>
+      <button id="reset-button" class="button ghost">기준안 복원</button>
+      <button id="save-button" class="button secondary">시나리오 저장</button>
+      <button id="excel-export-button" class="button primary">엑셀 추출</button>
+      <button id="territory-excel-export-button" class="button secondary">권역별 엑셀</button>
+      <button id="export-button" class="button ghost">JSON 내보내기</button>
+      <button id="import-button" class="button ghost">불러오기</button>
+      <input id="import-file" type="file" accept="application/json" hidden>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <section id="staff-alert-board" class="staff-alert-board" aria-label="권역 조정 알림판" aria-live="polite"></section>
+    <section id="data-quality-banner" class="data-quality-banner"></section>
+
+    <section class="workspace-grid">
+      <aside class="panel territory-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">TERRITORIES</p>
+            <h2>권역 관리</h2>
+          </div>
+          <button id="add-territory-button" class="icon-button" title="새 권역 추가">＋</button>
+        </div>
+        <div id="territory-list" class="territory-list"></div>
+        <div class="region-list-block">
+          <div class="subheading-row">
+            <h3 id="region-list-title">권역 지역</h3>
+            <span id="region-list-count" class="count-pill">0</span>
+          </div>
+          <input id="territory-region-filter" class="text-input" placeholder="이 권역에서 지역 검색">
+          <div id="territory-region-list" class="territory-region-list"></div>
+        </div>
+      </aside>
+
+      <section class="panel map-panel">
+        <div class="map-toolbar">
+          <div>
+            <p class="eyebrow">INTERACTIVE MAP</p>
+            <h2>지역을 선택해 권역을 변경하세요</h2>
+          </div>
+          <div class="map-controls">
+            <label class="search-box">지역 검색
+              <input id="region-search" list="region-options" placeholder="예: 성남시 분당구">
+              <datalist id="region-options"></datalist>
+            </label>
+            <div class="segmented" id="map-mode-control">
+              <button data-mode="territory" class="active">권역</button>
+              <button data-mode="sales">매출</button>
+              <button data-mode="installRatio">시공비율</button>
+            </div>
+          </div>
+        </div>
+        <div class="map-stage">
+          <svg id="territory-map" viewBox="0 0 1000 900" role="img" aria-label="대한민국 시군구 권역 지도">
+            <g id="map-regions"></g>
+            <g id="map-waterways" aria-label="한강 수계"></g>
+          </svg>
+          <div class="map-navigation-hint">휠 확대·축소 · 왼쪽 드래그 이동</div>
+          <div class="zoom-controls">
+            <button id="zoom-in" title="확대">＋</button>
+            <button id="zoom-out" title="축소">−</button>
+            <button id="zoom-reset" title="전체 보기">⌂</button>
+          </div>
+          <div id="map-tooltip" class="map-tooltip" hidden></div>
+          <div id="map-legend" class="map-legend"></div>
+          <div class="map-source-credit">한강 수계: © OpenStreetMap contributors</div>
+        </div>
+      </section>
+
+      <aside class="panel detail-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">REGION EDITOR</p>
+            <h2>지역 편집</h2>
+          </div>
+        </div>
+        <div id="region-detail" class="region-detail empty-state">
+          지도나 지역 목록에서 지역을 선택하세요.
+        </div>
+        <div class="changes-block">
+          <div class="subheading-row">
+            <h3>변경 내역</h3>
+            <span id="change-count" class="count-pill">0</span>
+          </div>
+          <div id="change-list" class="change-list" tabindex="0" aria-label="변경 내역 목록"></div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="analytics-grid">
+      <article class="panel chart-panel">
+        <div class="panel-heading"><div><p class="eyebrow">BASELINE VS CURRENT</p><h2>매출 비교 · 억원</h2></div></div>
+        <div id="sales-chart" class="comparison-chart"></div>
+      </article>
+      <article class="panel chart-panel">
+        <div class="panel-heading"><div><p class="eyebrow">BASELINE VS CURRENT</p><h2>시공비 비교 · 백만원</h2></div></div>
+        <div id="install-chart" class="comparison-chart"></div>
+      </article>
+    </section>
+
+    <section class="panel capacity-panel">
+      <div class="panel-heading capacity-heading">
+        <div>
+          <p class="eyebrow">CAPACITY CHECK</p>
+          <h2>권역별 인원·케파 커버리지</h2>
+        </div>
+        <p class="helper-text">매출 또는 시공비 기준을 권역별로 선택할 수 있습니다. 85% 이상은 주의, 100% 초과는 초과로 표시됩니다.</p>
+      </div>
+      <div class="table-wrap">
+        <table class="capacity-table">
+          <thead><tr><th>권역</th><th>기준</th><th>인원</th><th>1인당 케파</th><th>업무량</th><th>총 케파</th><th>가동률</th><th>판정</th></tr></thead>
+          <tbody id="capacity-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="app-dialog" class="dialog-backdrop" hidden>
+    <form id="app-dialog-form" class="app-dialog" role="dialog" aria-modal="true" aria-labelledby="app-dialog-title">
+      <p class="eyebrow">TERRITORY SIMULATOR</p>
+      <h2 id="app-dialog-title">확인</h2>
+      <p id="app-dialog-message" class="dialog-message"></p>
+      <input id="app-dialog-input" class="text-input dialog-input" autocomplete="off">
+      <div class="dialog-actions">
+        <button id="app-dialog-cancel" type="button" class="button ghost">취소</button>
+        <button id="app-dialog-confirm" type="submit" class="button primary">확인</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+  <script type="module" src="./app.mjs"></script>
+</body>
+</html>

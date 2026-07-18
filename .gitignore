@@ -1,0 +1,12 @@
+# Installed dependencies and runtime state
+node_modules/
+.server.pid
+
+# Local analysis previews and inspection traces
+.analysis_preview/
+outputs/**/*.ndjson
+
+# OS/editor noise
+Thumbs.db
+.DS_Store
+
