@@ -32,6 +32,7 @@ let suppressMapClick = false;
 let toastTimer;
 let dialogResolve = null;
 let dialogKind = "confirm";
+let showOnlyUnassignedChanges = false;
 
 const elements = {
   staffAlertBoard: document.querySelector("#staff-alert-board"),
@@ -49,6 +50,7 @@ const elements = {
   regionDetail: document.querySelector("#region-detail"),
   changeList: document.querySelector("#change-list"),
   changeCount: document.querySelector("#change-count"),
+  changeFilterUnassigned: document.querySelector("#change-filter-unassigned"),
   salesChart: document.querySelector("#sales-chart"),
   installChart: document.querySelector("#install-chart"),
   capacityBody: document.querySelector("#capacity-body"),
@@ -101,6 +103,9 @@ function bindEvents() {
   elements.territoryRegionFilter.addEventListener("input", renderTerritoryRegions);
   elements.regionDetail.addEventListener("change", handleRegionDetailChange);
   elements.regionDetail.addEventListener("click", handleRegionDetailClick);
+  elements.changeFilterUnassigned.addEventListener("click", toggleUnassignedChangeFilter);
+  elements.changeList.addEventListener("click", handleChangeListClick);
+  elements.changeList.addEventListener("change", handleChangeListChange);
   elements.capacityBody.addEventListener("input", handleCapacityInput);
   elements.capacityBody.addEventListener("change", handleCapacityChange);
   elements.mapModeControl.addEventListener("click", handleMapModeChange);
@@ -286,13 +291,56 @@ function renderRegionDetail() {
 
 function renderChanges() {
   const changes = APP_DATA.regions.filter((region) => (state.assignments[region.id] || UNASSIGNED_ID) !== region.baselineTerritoryId);
-  elements.changeCount.textContent = changes.length;
-  elements.changeList.innerHTML = changes.length ? changes.map((region) => {
+  const visibleChanges = showOnlyUnassignedChanges
+    ? changes.filter((region) => (state.assignments[region.id] || UNASSIGNED_ID) === UNASSIGNED_ID)
+    : changes;
+  const assignableTerritories = getActiveTerritories(state).filter((territory) => !territory.system);
+  elements.changeCount.textContent = showOnlyUnassignedChanges ? `${visibleChanges.length}/${changes.length}` : changes.length;
+  elements.changeFilterUnassigned.classList.toggle("active", showOnlyUnassignedChanges);
+  elements.changeFilterUnassigned.setAttribute("aria-pressed", String(showOnlyUnassignedChanges));
+  elements.changeFilterUnassigned.textContent = showOnlyUnassignedChanges ? "전체 변경" : "미배정만";
+  elements.changeList.innerHTML = visibleChanges.length ? visibleChanges.map((region) => {
     const before = baselineTerritoryById.get(region.baselineTerritoryId)?.name || "미배정";
-    const after = getTerritory(state, state.assignments[region.id])?.name || "미배정";
-    return `<div class="change-row" data-region-id="${region.id}"><div><strong>${escapeHtml(region.sido)} ${escapeHtml(region.name)}</strong><span>${escapeHtml(before)}</span></div><span class="change-arrow">→ ${escapeHtml(after)}</span></div>`;
-  }).join("") : `<div class="empty-state">기준안과 동일합니다.</div>`;
-  for (const row of elements.changeList.querySelectorAll(".change-row")) row.addEventListener("click", () => selectRegion(row.dataset.regionId, true));
+    const currentId = state.assignments[region.id] || UNASSIGNED_ID;
+    const after = getTerritory(state, currentId)?.name || "미배정";
+    const quickAssign = currentId === UNASSIGNED_ID
+      ? `<label class="change-quick-assign">빠른 권역 배정
+          <select class="change-quick-select" data-action="quick-assign" data-region-id="${region.id}" aria-label="${escapeHtml(`${region.sido} ${region.name} 빠른 권역 배정`)}">
+            <option value="">권역 선택...</option>
+            ${assignableTerritories.map((territory) => `<option value="${territory.id}">${escapeHtml(territory.name)}</option>`).join("")}
+          </select>
+        </label>`
+      : "";
+    return `<div class="change-row ${currentId === UNASSIGNED_ID ? "is-unassigned" : ""}" data-region-id="${region.id}">
+      <div class="change-row-summary"><div><strong>${escapeHtml(region.sido)} ${escapeHtml(region.name)}</strong><span>${escapeHtml(before)}</span></div><span class="change-arrow">→ ${escapeHtml(after)}</span></div>
+      ${quickAssign}
+    </div>`;
+  }).join("") : `<div class="empty-state">${showOnlyUnassignedChanges ? "현재 미배정 변경 지역이 없습니다." : "기준안과 동일합니다."}</div>`;
+}
+
+function toggleUnassignedChangeFilter() {
+  showOnlyUnassignedChanges = !showOnlyUnassignedChanges;
+  renderChanges();
+}
+
+function handleChangeListClick(event) {
+  if (event.target.closest("select")) return;
+  const row = event.target.closest(".change-row[data-region-id]");
+  if (!row) return;
+  selectRegion(row.dataset.regionId, true);
+}
+
+function handleChangeListChange(event) {
+  const select = event.target.closest('select[data-action="quick-assign"]');
+  if (!select || !select.value) return;
+  const region = regionById.get(select.dataset.regionId);
+  const territory = getTerritory(state, select.value);
+  if (!region || !territory || territory.system) return;
+  state.assignments[region.id] = territory.id;
+  state.selectedRegionId = region.id;
+  state.selectedTerritoryId = territory.id;
+  showToast(`${region.sido} ${region.name}을(를) ${territory.name}(으)로 배정했습니다.`);
+  renderAll();
 }
 
 function renderComparisonCharts() {

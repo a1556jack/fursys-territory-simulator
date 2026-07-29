@@ -76,11 +76,17 @@ assert.match(appSource, /addEventListener\("pointerdown", handleMapPointerDown\)
 assert.match(appSource, /setPointerCapture/, "지도 밖으로 끌어도 드래그가 이어져야 합니다.");
 assert.match(appSource, /suppressMapClick/, "지도 드래그 뒤 지역 클릭이 오작동하지 않아야 합니다.");
 assert.match(appHtml, /id="change-list"[^>]*tabindex="0"[^>]*aria-label="변경 내역 목록"/, "변경 내역 목록은 독립적으로 스크롤 가능한 영역이어야 합니다.");
+assert.match(appHtml, /id="change-filter-unassigned"[^>]*aria-pressed="false"/, "변경 내역에 미배정 전용 필터가 있어야 합니다.");
+assert.match(appSource, /showOnlyUnassignedChanges/, "미배정 변경 내역 필터 상태가 관리되어야 합니다.");
+assert.match(appSource, /data-action="quick-assign"/, "미배정 지역을 목록에서 즉시 배정할 수 있어야 합니다.");
+assert.match(appSource, /handleChangeListChange/, "빠른 권역 배정 이벤트가 연결되어야 합니다.");
 
 const appCss = await readFile(new URL("./app/styles.css", import.meta.url), "utf8");
 assert.match(appCss, /\.change-list\s*\{[^}]*max-height:\s*clamp\(/s, "변경 내역 목록 높이가 화면에 맞게 제한되어야 합니다.");
 assert.match(appCss, /\.change-list\s*\{[^}]*overflow-y:\s*auto/s, "변경 내역 목록에 세로 스크롤이 있어야 합니다.");
 assert.match(appCss, /\.change-list\s*\{[^}]*overscroll-behavior:\s*contain/s, "변경 내역 스크롤이 전체 페이지로 전파되면 안 됩니다.");
+assert.match(appCss, /\.change-filter-button\.active\s*\{/, "미배정 필터의 활성 상태가 시각적으로 구분되어야 합니다.");
+assert.match(appCss, /\.change-quick-assign\s*\{/, "빠른 권역 배정 컨트롤의 레이아웃이 정의되어야 합니다.");
 
 const waterwaysSource = await readFile(new URL("./app/waterways.mjs", import.meta.url), "utf8");
 assert.match(appHtml, /id="map-waterways"/, "지도에 한강 수계 레이어가 있어야 합니다.");

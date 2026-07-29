@@ -140,6 +140,20 @@ body.map-dragging { user-select: none; overflow: hidden; }
 .detail-actions .button { flex: 1; }
 .changes-block { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; display: flex; min-height: 0; flex: 1; flex-direction: column; }
 .changes-block .subheading-row { flex: none; }
+.change-heading-actions { display: flex; align-items: center; gap: 6px; }
+.change-filter-button {
+  border: 1px solid #cdd8e7;
+  border-radius: 999px;
+  background: #fff;
+  color: #526176;
+  padding: 4px 8px;
+  font-size: 9px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.change-filter-button:hover { border-color: var(--blue); color: var(--blue); }
+.change-filter-button.active { border-color: #a9c4ff; background: #eaf1ff; color: var(--blue); }
+.change-filter-button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .change-list {
   flex: 1 1 auto;
   max-height: clamp(220px, 34vh, 390px);
@@ -154,9 +168,34 @@ body.map-dragging { user-select: none; overflow: hidden; }
 .change-list::-webkit-scrollbar-track { background: #edf1f5; border-radius: 999px; }
 .change-list::-webkit-scrollbar-thumb { background: #aeb9c7; border-radius: 999px; }
 .change-list::-webkit-scrollbar-thumb:hover { background: #8795a8; }
-.change-row { align-items: start; }
+.change-row { align-items: stretch; flex-direction: column; cursor: pointer; }
+.change-row:hover { border-color: #b8c8dc; background: #f8fafc; }
+.change-row.is-unassigned { border-color: #d6def0; background: #fbfcff; }
+.change-row-summary { display: flex; align-items: start; gap: 7px; }
+.change-row-summary > div { min-width: 0; }
 .change-row strong { display: block; }
 .change-arrow { margin-left: auto; color: var(--muted); white-space: nowrap; }
+.change-quick-assign {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  border-top: 1px dashed #dbe3ee;
+  padding-top: 7px;
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 800;
+  cursor: default;
+}
+.change-quick-select {
+  min-width: 0;
+  width: 100%;
+  height: 30px;
+  padding: 4px 24px 4px 7px;
+  border-color: #c9d6e8;
+  background: #fff;
+  font-size: 10px;
+}
 
 .analytics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .chart-panel { padding: 14px; min-height: 360px; }

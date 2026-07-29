@@ -5,8 +5,8 @@ node_modules/
 # Local analysis previews and inspection traces
 .analysis_preview/
 outputs/**/*.ndjson
+.playwright-cli/
 
 # OS/editor noise
 Thumbs.db
 .DS_Store
-
