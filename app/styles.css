@@ -54,6 +54,7 @@ h3 { font-size: 13px; }
 .staff-alert-empty { color: var(--success); background: #edf8f1; border-radius: 8px; padding: 13px 15px; font-size: 12px; }
 
 .data-quality-banner { min-height: 42px; border: 1px solid #efcf9f; background: #fff8e8; color: #70430e; border-radius: 10px; padding: 10px 14px; font-size: 12px; line-height: 1.6; }
+.hosting-notice { display: inline-block; margin-left: 5px; color: #526176; }
 .workspace-grid { display: grid; grid-template-columns: 290px minmax(520px, 1fr) 350px; gap: 14px; min-height: 670px; }
 .territory-panel, .detail-panel { padding: 14px; display: flex; flex-direction: column; min-height: 0; }
 .panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }

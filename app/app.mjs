@@ -18,6 +18,7 @@ const STORAGE_KEY = "fursys-territory-simulator-scenarios-v1";
 const NEW_COLORS = ["#1d4ed8", "#0f766e", "#b45309", "#be123c", "#6d28d9", "#0369a1", "#4d7c0f"];
 const MAP_WIDTH = 1000;
 const MAP_HEIGHT = 900;
+const IS_STATIC_HOST = location.hostname.endsWith("github.io");
 const [minLon, minLat, maxLon, maxLat] = APP_DATA.metadata.bbox;
 const regionById = new Map(APP_DATA.regions.map((region) => [region.id, region]));
 const baselineTerritoryById = new Map(APP_DATA.territories.map((territory) => [territory.id, territory]));
@@ -155,7 +156,10 @@ function renderStaffAlerts() {
 
 function renderDataQuality() {
   const names = APP_DATA.unresolved.map((item) => item.name).join(", ");
-  elements.dataQualityBanner.innerHTML = `<strong>데이터 확인 필요</strong> · 시도 정보가 없는 동명 지역 ${APP_DATA.unresolved.length}개(${escapeHtml(names)})의 ${formatEok(APP_DATA.metadata.unresolvedSalesTotal)}억원은 권역 합계에 배분하지 않았습니다. 원본 전체 합계는 엑셀 추출의 권역 요약에 보존됩니다.`;
+  const hostingNotice = IS_STATIC_HOST
+    ? ` <span class="hosting-notice">외부 공유 화면에서는 JSON 내보내기만 지원하며, 엑셀 추출은 로컬 실행판을 이용해 주세요.</span>`
+    : "";
+  elements.dataQualityBanner.innerHTML = `<strong>데이터 확인 필요</strong> · 시도 정보가 없는 동명 지역 ${APP_DATA.unresolved.length}개(${escapeHtml(names)})의 ${formatEok(APP_DATA.metadata.unresolvedSalesTotal)}억원은 권역 합계에 배분하지 않았습니다. 원본 전체 합계는 엑셀 추출의 권역 요약에 보존됩니다.${hostingNotice}`;
 }
 
 function renderTerritories() {
@@ -635,6 +639,10 @@ function exportScenario() {
 }
 
 async function exportExcel() {
+  if (IS_STATIC_HOST) {
+    showToast("외부 공유 화면에서는 엑셀 추출을 지원하지 않습니다. 로컬 실행판을 이용해 주세요.");
+    return;
+  }
   const button = document.querySelector("#excel-export-button");
   const originalText = button.textContent;
   button.disabled = true;
@@ -664,6 +672,10 @@ async function exportExcel() {
 }
 
 async function exportTerritoryExcel() {
+  if (IS_STATIC_HOST) {
+    showToast("외부 공유 화면에서는 권역별 엑셀을 지원하지 않습니다. 로컬 실행판을 이용해 주세요.");
+    return;
+  }
   const button = document.querySelector("#territory-excel-export-button");
   const originalText = button.textContent;
   button.disabled = true;

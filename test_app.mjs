@@ -96,6 +96,8 @@ assert.match(waterwaysSource, /127\.310514,37\.524873/, "한강 팔당측 시작
 assert.match(waterwaysSource, /126\.413576,37\.844704/, "한강 하구측 끝 좌표가 보존되어야 합니다.");
 assert.match(appHtml, /id="excel-export-button"[^>]*>엑셀 추출</, "현재 시나리오 엑셀 추출 버튼이 있어야 합니다.");
 assert.match(appSource, /fetch\("\/export-xlsx"/, "엑셀 추출 버튼이 로컬 서버의 XLSX 생성 기능과 연결되어야 합니다.");
+assert.match(appSource, /IS_STATIC_HOST/, "GitHub Pages 정적 배포 환경을 구분해야 합니다.");
+assert.match(appSource, /외부 공유 화면에서는 엑셀 추출을 지원하지 않습니다/, "정적 배포에서는 서버 전용 엑셀 기능을 안내해야 합니다.");
 assert.match(appHtml, /id="territory-excel-export-button"[^>]*>권역별 엑셀</, "권역별 엑셀 일괄 추출 버튼이 있어야 합니다.");
 assert.match(appSource, /fetch\("\/export-territories-xlsx"/, "권역별 엑셀 버튼이 전용 XLSX 생성 기능과 연결되어야 합니다.");
 assert.match(appSource, /features\?\.includes\("territory-xlsx"\)/, "권역별 엑셀 추출 전에 서버 기능 버전을 확인해야 합니다.");
