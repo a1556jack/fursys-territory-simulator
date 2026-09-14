@@ -72,6 +72,7 @@ const elements = {
 initializeStaticControls();
 bindEvents();
 renderAll();
+syncSavedScenariosFromServer();
 
 function initializeStaticControls() {
   elements.regionOptions.innerHTML = APP_DATA.regions
@@ -614,7 +615,10 @@ async function saveScenario() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(savedScenarios));
   renderScenarioSelect();
   elements.scenarioSelect.value = name;
-  showToast(`${name} 시나리오를 저장했습니다.`);
+  const backedUp = await persistScenarioToServer(name, state);
+  showToast(backedUp
+    ? `${name} 시나리오를 저장하고 로컬 파일에도 백업했습니다.`
+    : `${name} 시나리오를 브라우저에 저장했습니다.`);
 }
 
 function loadSelectedScenario() {
@@ -785,6 +789,37 @@ function closeDialog(value) {
 function readSavedScenarios() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
   catch { return {}; }
+}
+
+async function syncSavedScenariosFromServer() {
+  if (IS_STATIC_HOST) return;
+  try {
+    const response = await fetch("/api/scenarios", { cache: "no-store" });
+    if (!response.ok) return;
+    const stored = await response.json();
+    const browserScenarios = savedScenarios;
+    savedScenarios = { ...stored, ...browserScenarios };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(savedScenarios));
+    renderScenarioSelect();
+    await Promise.all(Object.entries(browserScenarios).map(([name, scenario]) =>
+      persistScenarioToServer(name, scenario)));
+  } catch {
+    // The browser copy remains usable if the local file backup is temporarily unavailable.
+  }
+}
+
+async function persistScenarioToServer(name, scenario) {
+  if (IS_STATIC_HOST) return false;
+  try {
+    const response = await fetch("/api/scenarios", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name, state: cloneState(scenario) }),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
 }
 
 function showMapTooltip(event, regionId) {

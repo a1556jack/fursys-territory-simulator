@@ -5,7 +5,11 @@ import { fileURLToPath } from "node:url";
 import { APP_DATA } from "./app/data.mjs";
 import { validateScenario } from "./app/core.mjs";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "app");
+const projectRoot = path.dirname(fileURLToPath(import.meta.url));
+const root = path.resolve(projectRoot, "app");
+const scenarioStorePath = path.resolve(
+  process.env.SCENARIO_STORE_PATH || path.join(projectRoot, "data", "saved_scenarios.json"),
+);
 const port = Number(process.env.PORT) || 4317;
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -21,7 +25,29 @@ const server = http.createServer(async (request, response) => {
     const requestUrl = new URL(request.url, `http://${request.headers.host || "127.0.0.1"}`);
     if (requestUrl.pathname === "/health") {
       response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-      response.end(JSON.stringify({ ok: true, version: 2, features: ["territory-xlsx"] }));
+      response.end(JSON.stringify({
+        ok: true,
+        appId: "fursys-territory-simulator",
+        version: 3,
+        features: ["territory-xlsx", "scenario-storage"],
+      }));
+      return;
+    }
+    if (requestUrl.pathname === "/api/scenarios" && request.method === "GET") {
+      const scenarios = await readScenarioStore();
+      sendJson(response, 200, scenarios);
+      return;
+    }
+    if (requestUrl.pathname === "/api/scenarios" && request.method === "POST") {
+      const candidate = await readJsonBody(request);
+      const name = String(candidate?.name || "").trim();
+      if (!name || name.length > 100) throw new Error("시나리오 이름이 올바르지 않습니다.");
+      const state = validateScenario(APP_DATA, structuredClone(candidate.state));
+      state.scenarioName = name;
+      const scenarios = await readScenarioStore();
+      scenarios[name] = state;
+      await writeScenarioStore(scenarios);
+      sendJson(response, 200, { ok: true, name });
       return;
     }
     if (requestUrl.pathname === "/export-xlsx" && request.method === "POST") {
@@ -90,4 +116,34 @@ async function readJsonBody(request) {
 
 function sanitizeFilename(value) {
   return String(value).replace(/[\\/:*?"<>|]/g, "_");
+}
+
+async function readScenarioStore() {
+  try {
+    const stored = JSON.parse(await fs.readFile(scenarioStorePath, "utf8"));
+    if (!stored || Array.isArray(stored) || typeof stored !== "object") {
+      throw new Error("시나리오 저장 파일 형식이 올바르지 않습니다.");
+    }
+    return Object.fromEntries(Object.entries(stored).map(([name, candidate]) => {
+      const state = validateScenario(APP_DATA, structuredClone(candidate));
+      state.scenarioName = name;
+      return [name, state];
+    }));
+  } catch (error) {
+    if (error.code === "ENOENT") return {};
+    throw error;
+  }
+}
+
+async function writeScenarioStore(scenarios) {
+  await fs.mkdir(path.dirname(scenarioStorePath), { recursive: true });
+  await fs.writeFile(scenarioStorePath, `${JSON.stringify(scenarios, null, 2)}\n`, "utf8");
+}
+
+function sendJson(response, status, payload) {
+  response.writeHead(status, {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store",
+  });
+  response.end(JSON.stringify(payload));
 }

@@ -1,6 +1,8 @@
 # Installed dependencies and runtime state
 node_modules/
 .server.pid
+data/saved_scenarios.json
+.test-data/
 
 # Local analysis previews and inspection traces
 .analysis_preview/

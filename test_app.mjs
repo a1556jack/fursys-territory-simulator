@@ -106,13 +106,21 @@ assert.match(appHtml, /id="staff-alert-board"/, "상단에 권역 조정 알림�
 assert.doesNotMatch(appHtml, /id="kpi-grid"/, "기존 핵심 지표 카드는 제거되어야 합니다.");
 assert.match(appSource, /getInstallCostStaffAlerts\(APP_DATA, state\)/, "알림판은 현재 시나리오의 정상시공비 증가를 계산해야 합니다.");
 assert.match(appSource, /추가 인원 \$\{alert\.additionalStaff\}명 필요/, "알림 문구에 필요한 추가 인원 수가 표시되어야 합니다.");
+assert.match(appSource, /syncSavedScenariosFromServer\(\)/, "로컬 서버의 시나리오 저장 파일을 시작 시 불러와야 합니다.");
+assert.match(appSource, /persistScenarioToServer\(name, state\)/, "시나리오 저장 시 로컬 파일 백업이 함께 실행되어야 합니다.");
 
 const serverSource = await readFile(new URL("./server.mjs", import.meta.url), "utf8");
 assert.match(serverSource, /requestUrl\.pathname === "\/export-xlsx"/, "서버에 XLSX 생성 엔드포인트가 있어야 합니다.");
 assert.match(serverSource, /createScenarioWorkbookBytes/, "서버가 시나리오 워크북 생성기를 호출해야 합니다.");
 assert.match(serverSource, /requestUrl\.pathname === "\/export-territories-xlsx"/, "서버에 권역별 XLSX 생성 엔드포인트가 있어야 합니다.");
 assert.match(serverSource, /createTerritoryWorkbookBytes/, "서버가 권역별 워크북 생성기를 호출해야 합니다.");
-assert.match(serverSource, /features: \["territory-xlsx"\]/, "서버 상태 응답에 권역별 엑셀 기능 버전이 표시되어야 합니다.");
+assert.match(serverSource, /"territory-xlsx", "scenario-storage"/, "서버 상태 응답에 권역별 엑셀과 시나리오 저장 기능이 표시되어야 합니다.");
+assert.match(serverSource, /requestUrl\.pathname === "\/api\/scenarios" && request\.method === "GET"/, "저장된 시나리오 조회 API가 있어야 합니다.");
+assert.match(serverSource, /requestUrl\.pathname === "\/api\/scenarios" && request\.method === "POST"/, "시나리오 로컬 파일 저장 API가 있어야 합니다.");
+
+const launcherSource = await readFile(new URL("./start_simulator.ps1", import.meta.url), "utf8");
+assert.match(launcherSource, /fursys-territory-simulator/, "실행기는 다른 앱의 200 응답을 시뮬레이터로 오인하면 안 됩니다.");
+assert.match(launcherSource, /4317\.\.4330/, "기본 포트가 사용 중이면 빈 포트를 찾아야 합니다.");
 
 console.log(JSON.stringify({
   tests: "PASS",
