@@ -15,6 +15,9 @@ import {
 } from "./core.mjs";
 
 const STORAGE_KEY = "fursys-territory-simulator-scenarios-v1";
+const PUBLISHED_SCENARIOS_URL = "./saved_scenarios.json";
+const PUBLISHED_SCENARIOS_VERSION = "recovered-scenarios-2026-09-21-v1";
+const PUBLISHED_SCENARIOS_VERSION_KEY = `${STORAGE_KEY}-published-version`;
 const NEW_COLORS = ["#1d4ed8", "#0f766e", "#b45309", "#be123c", "#6d28d9", "#0369a1", "#4d7c0f"];
 const MAP_WIDTH = 1000;
 const MAP_HEIGHT = 900;
@@ -72,7 +75,7 @@ const elements = {
 initializeStaticControls();
 bindEvents();
 renderAll();
-syncSavedScenariosFromServer();
+syncSavedScenarios();
 
 function initializeStaticControls() {
   elements.regionOptions.innerHTML = APP_DATA.regions
@@ -791,13 +794,30 @@ function readSavedScenarios() {
   catch { return {}; }
 }
 
-async function syncSavedScenariosFromServer() {
-  if (IS_STATIC_HOST) return;
+async function syncSavedScenarios() {
+  const browserScenarios = savedScenarios;
+  if (IS_STATIC_HOST) {
+    try {
+      const response = await fetch(PUBLISHED_SCENARIOS_URL, { cache: "no-store" });
+      if (!response.ok) return;
+      const publishedScenarios = await response.json();
+      const needsPublishedRefresh = localStorage.getItem(PUBLISHED_SCENARIOS_VERSION_KEY)
+        !== PUBLISHED_SCENARIOS_VERSION;
+      savedScenarios = needsPublishedRefresh
+        ? { ...browserScenarios, ...publishedScenarios }
+        : { ...publishedScenarios, ...browserScenarios };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(savedScenarios));
+      localStorage.setItem(PUBLISHED_SCENARIOS_VERSION_KEY, PUBLISHED_SCENARIOS_VERSION);
+      renderScenarioSelect();
+    } catch {
+      // Existing browser scenarios remain available if the published backup cannot be loaded.
+    }
+    return;
+  }
   try {
     const response = await fetch("/api/scenarios", { cache: "no-store" });
     if (!response.ok) return;
     const stored = await response.json();
-    const browserScenarios = savedScenarios;
     savedScenarios = { ...stored, ...browserScenarios };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(savedScenarios));
     renderScenarioSelect();

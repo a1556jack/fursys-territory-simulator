@@ -28,6 +28,7 @@ jobs:
         run: |
           mkdir -p _site
           cp -R app/. _site/
+          cp data/saved_scenarios.json _site/saved_scenarios.json
           touch _site/.nojekyll
 
       - name: Configure Pages

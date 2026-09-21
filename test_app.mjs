@@ -63,10 +63,25 @@ invalidTarget.assignments[movable.id] = "deleted-territory";
 validateScenario(APP_DATA, invalidTarget);
 assert.equal(invalidTarget.assignments[movable.id], UNASSIGNED_ID, "존재하지 않는 권역 배정은 미배정으로 이동해야 합니다.");
 
-const [appSource, appHtml] = await Promise.all([
+const [appSource, appHtml, publishedScenariosSource, pagesWorkflow] = await Promise.all([
   readFile(new URL("./app/app.mjs", import.meta.url), "utf8"),
   readFile(new URL("./app/index.html", import.meta.url), "utf8"),
+  readFile(new URL("./data/saved_scenarios.json", import.meta.url), "utf8"),
+  readFile(new URL("./.github/workflows/pages.yml", import.meta.url), "utf8"),
 ]);
+const publishedScenarios = JSON.parse(publishedScenariosSource);
+assert.deepEqual(
+  Object.keys(publishedScenarios).sort((a, b) => a.localeCompare(b, "ko")),
+  ["권역조정2", "권역조정3", "권역조정3 백업 7월16일", "권역조정3 백업 7월25일 대전센터", "권역조정4(8월 버전)", "작업 시나리오"].sort((a, b) => a.localeCompare(b, "ko")),
+  "외부 공유판에 복원된 시나리오 6개가 포함되어야 합니다.",
+);
+for (const [name, publishedScenario] of Object.entries(publishedScenarios)) {
+  const validated = validateScenario(APP_DATA, structuredClone(publishedScenario));
+  assert.equal(Object.keys(validated.assignments).length, APP_DATA.regions.length, `${name}의 지역 배정이 모두 있어야 합니다.`);
+}
+assert.match(appSource, /fetch\(PUBLISHED_SCENARIOS_URL/, "외부 공유판이 배포된 시나리오 백업을 불러와야 합니다.");
+assert.match(appSource, /PUBLISHED_SCENARIOS_VERSION_KEY/, "외부 공유판의 오래된 브라우저 저장값을 배포 시 갱신해야 합니다.");
+assert.match(pagesWorkflow, /cp data\/saved_scenarios\.json _site\/saved_scenarios\.json/, "GitHub Pages 배포물에 시나리오 백업이 포함되어야 합니다.");
 assert.doesNotMatch(appSource, /window\.(prompt|confirm|alert)\s*\(/, "Codex 브라우저에서 지원하지 않는 기본 대화상자를 사용하면 안 됩니다.");
 assert.match(appHtml, /id="app-dialog"/, "권역 생성·삭제용 앱 내부 대화상자가 있어야 합니다.");
 assert.match(appSource, /openTextDialog/, "권역 이름 입력 대화상자가 연결되어야 합니다.");
@@ -106,7 +121,7 @@ assert.match(appHtml, /id="staff-alert-board"/, "상단에 권역 조정 알림�
 assert.doesNotMatch(appHtml, /id="kpi-grid"/, "기존 핵심 지표 카드는 제거되어야 합니다.");
 assert.match(appSource, /getInstallCostStaffAlerts\(APP_DATA, state\)/, "알림판은 현재 시나리오의 정상시공비 증가를 계산해야 합니다.");
 assert.match(appSource, /추가 인원 \$\{alert\.additionalStaff\}명 필요/, "알림 문구에 필요한 추가 인원 수가 표시되어야 합니다.");
-assert.match(appSource, /syncSavedScenariosFromServer\(\)/, "로컬 서버의 시나리오 저장 파일을 시작 시 불러와야 합니다.");
+assert.match(appSource, /syncSavedScenarios\(\)/, "저장된 시나리오를 시작 시 불러와야 합니다.");
 assert.match(appSource, /persistScenarioToServer\(name, state\)/, "시나리오 저장 시 로컬 파일 백업이 함께 실행되어야 합니다.");
 
 const serverSource = await readFile(new URL("./server.mjs", import.meta.url), "utf8");
