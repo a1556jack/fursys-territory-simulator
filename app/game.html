@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#102c2b" />
+    <title>권역지략 · FURSYS TERRITORY COMMAND</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23102c2b'/%3E%3Cpath d='M8 25V7l17 4-17 6' fill='none' stroke='%23ddb970' stroke-width='3'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="./game.css" />
+  </head>
+  <body>
+    <header class="command-header">
+      <a class="game-brand" href="./game.html" aria-label="권역지략 홈"
+        ><span class="crest" aria-hidden="true">⚑</span
+        ><span
+          ><strong>권역지략</strong
+          ><small>FURSYS · TERRITORY COMMAND</small></span
+        ><span class="prototype">PLAYABLE PROTOTYPE</span></a
+      >
+      <nav aria-label="게임 메뉴">
+        <a href="./index.html">업무 시뮬레이터 ↗</a
+        ><button id="rules-button" class="quiet">게임 가정</button
+        ><button id="export-game" class="quiet">훈련안 내보내기</button
+        ><button id="restart-game" class="quiet">새 작전</button>
+      </nav>
+    </header>
+    <div id="loading" class="loading" role="status">
+      8월 작전 지도를 펼치는 중입니다…
+    </div>
+    <main id="game-shell" class="game-shell" hidden>
+      <section class="status-strip" aria-label="작전 현황">
+        <div class="campaign-label">
+          <span class="overline">CAMPAIGN 01 · 균형의 기술</span
+          ><strong id="round-label">제1분기</strong><span id="event-tag"></span>
+        </div>
+        <div class="metric score-metric">
+          <span
+            >종합 운영 점수
+            <button
+              class="help-dot"
+              data-show-rules
+              aria-label="점수 계산 보기"
+            >
+              ?
+            </button></span
+          ><strong id="score-value">0<small>/100</small></strong
+          ><i id="score-delta"></i>
+        </div>
+        <div class="metric">
+          <span>업무 커버율</span
+          ><strong id="coverage-value">0<small>%</small></strong>
+          <div class="mini-track"><i id="coverage-bar"></i></div>
+        </div>
+        <div class="metric">
+          <span>과부하 권역</span
+          ><strong id="overload-value">0<small>개</small></strong
+          ><i>권역별 Capa 초과</i>
+        </div>
+        <div class="metric">
+          <span>예비 인력</span
+          ><strong id="reserve-value">3<small>명</small></strong
+          ><i>전체 49명 내 재배치</i>
+        </div>
+        <div class="turn-command">
+          <span>이번 분기 남은 명령 <b id="points-label">6 / 6</b></span>
+          <div id="command-pips" class="command-pips"></div>
+          <button id="resolve-round" class="gold-button">
+            분기 결산 <span>→</span>
+          </button>
+        </div>
+      </section>
+      <section class="command-layout">
+        <aside class="roster-panel panel">
+          <div class="panel-heading">
+            <div>
+              <span class="overline">COMMANDERS</span>
+              <h2>권역 사령부</h2>
+            </div>
+            <span class="count-badge">9</span>
+          </div>
+          <div class="roster-caption">
+            <span>권역 / 배치 인원</span><span>업무 가동률</span>
+          </div>
+          <div
+            id="commander-list"
+            class="commander-list"
+            aria-label="권역 목록"
+          ></div>
+          <div class="roster-legend">
+            <i class="legend-dot safe"></i>여유
+            <i class="legend-dot warn"></i>적정
+            <i class="legend-dot danger"></i>과부하
+          </div>
+          <div class="source-note">
+            <span>STARTING SCENARIO</span><strong>권역조정4(8월 버전)</strong
+            ><small>배정 지역 85개 · 2025년 업무량 기반</small>
+          </div>
+        </aside>
+        <section class="map-panel" aria-label="권역 작전 지도">
+          <div class="map-heading">
+            <div>
+              <span class="overline">THE STRATEGIC TABLE</span>
+              <h2>균형을 설계하는 한 수</h2>
+            </div>
+            <div class="view-switch" role="group" aria-label="지도 표시 방식">
+              <button id="territory-view" class="active" aria-pressed="true">
+                권역</button
+              ><button id="load-view" aria-pressed="false">과부하</button>
+            </div>
+          </div>
+          <div class="map-stage" id="game-map-stage">
+            <div class="terrain-art" aria-hidden="true"></div>
+            <div class="map-vignette" aria-hidden="true"></div>
+            <div class="map-topline">
+              <span class="live-dot"></span> REAL REGIONS · SIMULATED OPERATIONS
+              <span class="map-north">N ↑</span>
+            </div>
+            <svg
+              id="game-map"
+              viewBox="0 0 1000 740"
+              role="group"
+              aria-label="실제 시군구 경계를 이용한 2.5D 작전 지도"
+            ></svg>
+            <div class="map-location">
+              <strong>경인 · 충청 · 강원</strong
+              ><span>실제 시군구 경계 / 장식 배경은 생성 이미지</span>
+            </div>
+            <div class="map-controls">
+              <button id="map-zoom-in" aria-label="지도 확대">＋</button
+              ><button id="map-zoom-out" aria-label="지도 축소">−</button
+              ><button id="map-home">전체</button
+              ><button id="map-seoul">서울</button>
+            </div>
+            <div id="map-tooltip" class="map-tooltip" hidden></div>
+          </div>
+          <div class="event-ribbon">
+            <div class="event-emblem" aria-hidden="true">✦</div>
+            <div>
+              <span id="event-heading">이번 분기의 작전</span>
+              <p id="event-description"></p>
+            </div>
+            <span class="event-status">훈련 사건</span>
+          </div>
+          <div class="map-bottom">
+            <span>지역 클릭 → 이관 · 권역 선택 → 인력 재배치</span
+            ><span>휠 확대 · 드래그 이동</span
+            ><button id="undo-game" class="quiet">↶ 한 수 되돌리기</button>
+          </div>
+        </section>
+        <aside class="orders-panel panel">
+          <div class="panel-heading">
+            <div>
+              <span class="overline">YOUR NEXT MOVE</span>
+              <h2>작전 지시</h2>
+            </div>
+            <span class="order-seal" aria-hidden="true">令</span>
+          </div>
+          <div class="orders-scroll">
+            <section
+              id="staff-orders"
+              class="order-section"
+              aria-label="인력 재배치"
+            ></section>
+            <section
+              id="region-orders"
+              class="order-section"
+              aria-label="지역 이관"
+            ></section>
+            <section class="advisor-section">
+              <span class="overline">ADVISOR’S NOTE</span>
+              <h3>참모의 제안</h3>
+              <p id="advisor-text"></p>
+            </section>
+            <section class="mission-section">
+              <h3>이번 분기 목표</h3>
+              <ul id="mission-list"></ul>
+            </section>
+          </div>
+          <div class="journal">
+            <span class="overline">LATEST ORDER</span>
+            <p id="latest-order"></p>
+          </div>
+        </aside>
+      </section>
+    </main>
+    <footer class="game-footer">
+      <span>실무 판단 훈련용 프로토타입 · 인원과 Capa는 게임 가정</span
+      ><span id="save-status" role="status">이 브라우저에 자동 저장</span>
+    </footer>
+    <dialog id="game-dialog" aria-labelledby="dialog-title">
+      <div class="dialog-shell">
+        <button
+          id="close-dialog"
+          class="dialog-close"
+          aria-label="대화상자 닫기"
+        >
+          ×
+        </button>
+        <div id="dialog-content"></div>
+      </div>
+    </dialog>
+    <div id="game-toast" class="game-toast" role="status" hidden></div>
+    <script type="module" src="./game.mjs"></script>
+  </body>
+</html>
