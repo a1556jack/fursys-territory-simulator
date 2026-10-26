@@ -19,7 +19,7 @@ const scenarios = JSON.parse(
 );
 const source = scenarios["권역조정4(8월 버전)"];
 const untouched = JSON.stringify(source);
-const game = createGame(APP_DATA, source);
+const game = createGame(APP_DATA, source, { mode: "story" });
 assert.equal(game.regionIds.length, 85);
 assert.equal(
   Object.values(game.staff).reduce((a, b) => a + b, 0),
@@ -105,23 +105,18 @@ assert.throws(() =>
   ),
 );
 
-const next = resolveRound(APP_DATA, moved);
+assert.throws(() => resolveRound(APP_DATA, moved), /목표/);
+const freeGame = createGame(APP_DATA, source, { mode: "open" });
+const next = resolveRound(APP_DATA, freeGame);
 assert.equal(next.round, 2);
-assert.equal(next.points, 6);
+assert.equal(next.points, null);
 assert.equal(next.reports.length, 1);
 assert.equal(next.undoStack.length, 0);
 assert.ok(evaluateGame(APP_DATA, next).totalWorkload > metrics.totalWorkload);
-const finished = resolveRound(APP_DATA, resolveRound(APP_DATA, next));
-assert.equal(finished.finished, true);
-assert.equal(finished.reports.length, 3);
-assert.throws(() => resolveRound(APP_DATA, finished));
-assert.throws(() =>
-  applyCommand(APP_DATA, finished, {
-    type: "staff",
-    from: "reserve",
-    to: "t_kim_yonghun",
-  }),
-);
+const continuing = resolveRound(APP_DATA, resolveRound(APP_DATA, next));
+assert.equal(continuing.finished, false);
+assert.equal(continuing.reports.length, 3);
+assert.equal(continuing.round, 4);
 assert.equal(
   restoreGame(APP_DATA, source, JSON.parse(JSON.stringify(moved))).staff
     .t_kim_yonghun,

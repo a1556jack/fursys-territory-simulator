@@ -2,17 +2,34 @@ import { APP_DATA } from "./data.mjs";
 import { HAN_RIVER } from "./waterways.mjs";
 import {
   SOURCE_SCENARIO_NAME,
-  ROUND_EVENTS,
+  GAME_MODES,
+  STORY_CHAPTERS,
+  getRoundEvent,
+  getObjectives,
+  canResolveRound,
+  advanceTutorial,
+  retryRound,
   createGame,
   evaluateGame,
   applyCommand,
   undoCommand,
   resolveRound,
-  restoreGame,
   exportTrainingScenario,
 } from "./game-core.mjs";
+import {
+  SAVE_KEYS,
+  loadModeGame,
+  saveModeGame,
+  lastMode,
+} from "./game-saves.mjs";
+import {
+  welcomeMarkup,
+  modePickerMarkup,
+  learningMarkup,
+  chapterBriefMarkup,
+  rulesMarkup,
+} from "./game-experience.mjs";
 
-const SAVE_KEY = "fursys-territory-command-v1";
 const $ = (selector) => document.querySelector(selector);
 const esc = (value) =>
   String(value).replace(
@@ -73,10 +90,9 @@ async function init() {
       "시나리오 백업에 연결할 수 없습니다. 서버 또는 배포 상태를 확인해 주세요.",
     );
   source = (await response.json())[SOURCE_SCENARIO_NAME];
-  game = createGame(APP_DATA, source);
+  game = createGame(APP_DATA, source, { mode: lastMode() });
   try {
-    const saved = localStorage.getItem(SAVE_KEY);
-    if (saved) game = restoreGame(APP_DATA, source, JSON.parse(saved));
+    game = loadModeGame(APP_DATA, source, game.mode) || game;
   } catch {
     notify("이전 게임 저장값을 읽지 못해 새 작전을 열었습니다.");
   }
@@ -84,9 +100,18 @@ async function init() {
   colorById = new Map(game.territories.map((t, i) => [t.id, COLORS[i]]));
   setupProjection();
   bindEvents();
-  render();
   $("#loading").hidden = true;
   $("#game-shell").hidden = false;
+  prepareTutorial();
+  render();
+  try {
+    if (!localStorage.getItem(SAVE_KEYS.welcome)) {
+      showWelcome();
+      localStorage.setItem(SAVE_KEYS.welcome, "seen");
+    }
+  } catch {
+    showWelcome();
+  }
 }
 
 function setupProjection() {
@@ -138,13 +163,21 @@ function render() {
   metrics = evaluateGame(APP_DATA, game);
   const original = createGame(APP_DATA, source, {
     capacityPerPerson: game.capacityPerPerson,
+    mode: game.mode,
   });
   original.round = game.round;
   baseline = evaluateGame(APP_DATA, original);
-  $("#round-label").textContent = game.finished
-    ? "원정 완료"
-    : `제${game.round}분기`;
-  $("#event-tag").textContent = ROUND_EVENTS[game.round - 1].tag;
+  $("#campaign-mode-label").textContent =
+    `${GAME_MODES[game.mode]} · ${game.mode === "story" ? "균형의 기술" : game.mode === "open" ? "자유로운 실험" : "두 가지 명령 배우기"}`;
+  $("#round-label").textContent =
+    game.mode === "tutorial"
+      ? game.finished
+        ? "연습 완료"
+        : "따라하기"
+      : game.finished
+        ? "원정 완료"
+        : `${game.mode === "story" ? "제" : ""}${game.round}${game.mode === "story" ? "장" : "턴"}`;
+  $("#event-tag").textContent = getRoundEvent(game).tag;
   $("#score-value").innerHTML = `${metrics.score}<small>/100</small>`;
   const delta = metrics.score - baseline.score;
   $("#score-delta").textContent =
@@ -155,41 +188,53 @@ function render() {
   $("#coverage-bar").style.width = `${metrics.coverage}%`;
   $("#overload-value").innerHTML = `${metrics.overloaded}<small>개</small>`;
   $("#reserve-value").innerHTML = `${game.reserves}<small>명</small>`;
-  $("#points-label").textContent = `${game.points} / 6`;
+  $("#commands-label").textContent =
+    game.mode === "open"
+      ? "자유로운 명령"
+      : game.mode === "tutorial"
+        ? "안내 따라 진행"
+        : "이번 턴 남은 명령";
+  $("#points-label").textContent =
+    game.mode === "open" ? "무제한 ∞" : `${game.points} / 6`;
   $("#command-pips").innerHTML = Array.from(
     { length: 6 },
-    (_, i) => `<i class="${i < game.points ? "on" : ""}"></i>`,
+    (_, i) =>
+      `<i class="${game.mode === "open" || i < game.points ? "on" : ""}"></i>`,
   ).join("");
-  $("#resolve-round").innerHTML = game.finished
-    ? "작전 결과 보기 <span>↗</span>"
-    : "분기 결산 <span>→</span>";
+  $("#resolve-round").innerHTML =
+    game.mode === "tutorial"
+      ? "안내를 따라 연습 중"
+      : game.finished
+        ? "작전 결과 보기 <span>↗</span>"
+        : game.mode === "open"
+          ? "다음 수요 상황 <span>→</span>"
+          : canResolveRound(APP_DATA, game)
+            ? "목표 달성 · 결산 <span>→</span>"
+            : "목표를 달성해 주세요";
+  $("#resolve-round").disabled =
+    game.mode === "tutorial" ||
+    (!game.finished && !canResolveRound(APP_DATA, game));
   $("#undo-game").disabled = game.finished || !game.undoStack.length;
-  $("#event-heading").textContent = ROUND_EVENTS[game.round - 1].title;
-  $("#event-description").textContent =
-    ROUND_EVENTS[game.round - 1].description;
+  $("#event-heading").textContent = getRoundEvent(game).title;
+  $("#event-description").textContent = getRoundEvent(game).description;
   $("#latest-order").textContent = game.log[0];
-  $("#mission-list").innerHTML = [
-    [
-      metrics.coverage >= 99.95,
-      "업무 커버율 100%",
-      `${metrics.coverage.toFixed(1)}%`,
-    ],
-    [!metrics.overloaded, "과부하 권역 0개", `${metrics.overloaded}개`],
-    [
-      metrics.balance >= 90,
-      "인력 균형 90점 이상",
-      `${metrics.balance.toFixed(0)}점`,
-    ],
-  ]
+  $("#mission-heading").textContent =
+    game.mode === "open"
+      ? "참고 목표 · 자유롭게 실험하세요"
+      : game.mode === "tutorial"
+        ? "연습 후 확인할 지표"
+        : "이번 장의 필수 목표";
+  $("#mission-list").innerHTML = getObjectives(APP_DATA, game)
     .map(
-      ([ok, text, value]) =>
-        `<li class="${ok ? "done" : ""}"><span>${ok ? "✓" : "○"} ${text}</span><b>${value}</b></li>`,
+      ({ passed, label, value }) =>
+        `<li class="${passed ? "done" : ""}"><span>${passed ? "✓" : "○"} ${esc(label)}</span><b>${esc(value)}</b></li>`,
     )
     .join("");
   renderRoster();
   renderMap();
   renderOrders();
   renderAdvisor();
+  renderExperience();
   save();
 }
 
@@ -278,7 +323,7 @@ function optionList(exclude, includeReserve = false, selected = "") {
 }
 function renderOrders() {
   const territory = metrics.territories.find((t) => t.id === selectedTerritory);
-  const disabled = game.finished || !game.points;
+  const disabled = game.finished || (game.mode !== "open" && !game.points);
   const donors = metrics.territories
     .filter((t) => t.id !== territory.id && t.staff > 0)
     .sort((a, b) => b.capacity - b.workload - (a.capacity - a.workload));
@@ -327,7 +372,7 @@ function renderOrders() {
   renderPreview();
 }
 function renderPreview() {
-  if (game.finished || !game.points) {
+  if (game.finished || (game.mode !== "open" && !game.points)) {
     $("#region-preview").textContent =
       "결산 후 다음 작전을 진행할 수 있습니다.";
     return;
@@ -345,7 +390,10 @@ function renderPreview() {
     $("#region-preview").textContent =
       `예상 변화: 운영 점수 ${delta >= 0 ? "+" : ""}${delta} · 과부하 ${metrics.overloaded} → ${next.overloaded}개`;
   } catch {
-    $("#region-preview").textContent = "이관할 권역을 선택해 주세요.";
+    $("#region-preview").textContent =
+      game.mode === "tutorial"
+        ? "위쪽 따라하기 안내의 순서대로 진행해 주세요."
+        : "이관할 권역을 선택해 주세요.";
   }
 }
 function renderAdvisor() {
@@ -364,7 +412,144 @@ function renderAdvisor() {
     `${worst.name}의 업무가 연간 Capa보다 ${million(worst.gap)}백만원 많습니다. ${donor ? `${donor.name}의 가동률 ${percent(donor.utilization)}와 비교해 지원` : "예비 인력 투입"} 또는 지역 이관을 검토해 보세요. 선택 전후의 두 권역을 함께 보세요.`;
 }
 
+function renderExperience() {
+  const panel = $("#learning-panel");
+  panel.className = `learning-panel mode-${game.mode}`;
+  panel.innerHTML = learningMarkup(APP_DATA, game, metrics);
+  document
+    .querySelectorAll(".tutorial-highlight")
+    .forEach((el) => el.classList.remove("tutorial-highlight"));
+  if (game.mode !== "tutorial") return;
+  const allowed =
+    game.tutorialStep === 0
+      ? "support"
+      : game.tutorialStep === 2
+        ? "transfer"
+        : null;
+  document.querySelectorAll("[data-command]").forEach((button) => {
+    button.disabled = button.disabled || button.dataset.command !== allowed;
+  });
+  const highlights =
+    game.tutorialStep === 0
+      ? ["#staff-donor", "[data-command='support']"]
+      : game.tutorialStep === 2
+        ? ["#game-region-search", "#region-target", "[data-command='transfer']"]
+        : [];
+  highlights.forEach((selector) =>
+    $(selector)?.classList.add("tutorial-highlight"),
+  );
+}
+
+function prepareTutorial(focus = false) {
+  if (game.mode !== "tutorial") return;
+  if (game.tutorialStep < 2) {
+    selectedTerritory = "t_kim_yonghun";
+    staffDonor = "t_lee_hyeonseok";
+  } else {
+    selectedTerritory = "t_kim_jeonghun";
+    selectedRegion = "11410";
+    regionTarget = "t_lee_hyeonseok";
+    if (focus) {
+      const [x, y] = project(
+        scopedRegions.find((r) => r.id === "11410").centroid,
+      );
+      view = { x: x - 135, y: y - 100, w: 270, h: 199.8 };
+    }
+  }
+}
+
+function resetView() {
+  selectedTerritory = "t_kim_yonghun";
+  selectedRegion = "11680";
+  regionTarget = "";
+  staffDonor = "";
+  view = { x: 0, y: 0, w: 1000, h: 740 };
+  prepareTutorial();
+}
+
+function activateMode(mode, restart = false) {
+  try {
+    let stored;
+    try {
+      stored = loadModeGame(APP_DATA, source, mode);
+    } catch {
+      notify("이전 저장값은 복구용 사본으로 보관하고 새 게임을 준비했습니다.");
+    }
+    game =
+      !restart && stored
+        ? stored
+        : createGame(APP_DATA, source, {
+            mode,
+            capacityPerPerson:
+              mode === "open"
+                ? stored?.capacityPerPerson || 50_000_000
+                : 50_000_000,
+          });
+    resetView();
+    render();
+    if (mode === "story" && ((!stored && !game.finished) || restart))
+      openDialog(chapterBriefMarkup(APP_DATA, game));
+  } catch (error) {
+    notify(`진행을 불러오지 못했습니다. ${error.message}`);
+  }
+}
+
+function showModes() {
+  const saves = {};
+  for (const mode of Object.keys(GAME_MODES)) {
+    try {
+      saves[mode] = loadModeGame(APP_DATA, source, mode);
+    } catch {
+      saves[mode] = null;
+    }
+  }
+  openDialog(modePickerMarkup(saves), true);
+}
+
+function showWelcome() {
+  openDialog(welcomeMarkup(), true);
+}
+
+function showRetry() {
+  openDialog(
+    `<span class="overline">RETRY CHAPTER ${game.round}</span><h2 id="dialog-title">이번 턴을 다시 풀어볼까요?</h2><p>현재 ${game.round}장의 시작 편성으로 돌아가고 명령 6회를 다시 받습니다. 이미 완료한 이전 장의 결과와 다른 모드의 진행은 유지됩니다.</p><div class="dialog-actions"><button class="action-button" data-dialog-action="close">계속 고민하기</button><button class="gold-button" data-dialog-action="retry">이번 턴 다시 시작 →</button></div>`,
+  );
+}
+
 function bindEvents() {
+  $("#mode-button").addEventListener("click", showModes);
+  $("#learn-button").addEventListener("click", showWelcome);
+  $("#learning-panel").addEventListener("click", (event) => {
+    const action = event.target.closest("[data-learning-action]")?.dataset
+      .learningAction;
+    if (action === "modes") showModes();
+    if (action === "hint")
+      openDialog(
+        `<span class="overline">ADVISOR’S HINT · 제${game.round}장</span><h2 id="dialog-title">다음 한 수의 실마리</h2><p>${esc(STORY_CHAPTERS[game.round - 1].hint)}</p><p class="rules-detail">하나의 예시입니다. 다른 편성으로도 목표를 달성할 수 있어요. 행동 전후 두 권역의 가동률을 비교해 보세요.</p><div class="dialog-actions"><button class="gold-button" data-dialog-action="close">직접 풀어보기 →</button></div>`,
+      );
+    if (action === "retry") showRetry();
+    if (action === "next") {
+      try {
+        game = advanceTutorial(game);
+        prepareTutorial(true);
+        render();
+      } catch (e) {
+        notify(e.message);
+      }
+    }
+    if (
+      action === "focus" ||
+      (action === "next" && game.mode === "tutorial" && game.tutorialStep === 2)
+    ) {
+      prepareTutorial(true);
+      render();
+      $(
+        game.tutorialStep === 0
+          ? "[data-command='support']"
+          : "[data-command='transfer']",
+      )?.scrollIntoView({ block: "nearest" });
+    }
+  });
   for (const [id, mode] of [
     ["territory-view", "territory"],
     ["load-view", "load"],
@@ -385,11 +570,13 @@ function bindEvents() {
     staffDonor = "";
     renderRoster();
     renderOrders();
+    renderExperience();
   });
   $(".orders-panel").addEventListener("change", (event) => {
     if (event.target.id === "staff-donor") {
       staffDonor = event.target.value;
       renderOrders();
+      renderExperience();
     }
     if (event.target.id === "region-target") {
       regionTarget = event.target.value;
@@ -432,14 +619,17 @@ function bindEvents() {
       showReport(game.reports.at(-1));
       return;
     }
-    const reportMetrics = metrics;
-    game = resolveRound(APP_DATA, game);
-    render();
-    showReport(game.reports.at(-1), reportMetrics);
+    try {
+      game = resolveRound(APP_DATA, game);
+      render();
+      showReport(game.reports.at(-1));
+    } catch (e) {
+      notify(e.message);
+    }
   });
   $("#rules-button").addEventListener("click", showRules);
   $("[data-show-rules]").addEventListener("click", showRules);
-  $("#restart-game").addEventListener("click", showRestart);
+  $("#restart-game").addEventListener("click", () => showRestart(game.mode));
   $("#export-game").addEventListener("click", exportGame);
   $("#close-dialog").addEventListener("click", () => dialog.close());
   dialog.addEventListener("click", (event) => {
@@ -448,6 +638,39 @@ function bindEvents() {
   dialog.addEventListener("click", (event) => {
     const action = event.target.closest("[data-dialog-action]")?.dataset
       .dialogAction;
+    const mode = event.target.closest("[data-mode]")?.dataset.mode;
+    const freshMode =
+      event.target.closest("[data-fresh-mode]")?.dataset.freshMode;
+    const restartMode = event.target.closest("[data-restart-mode]")?.dataset
+      .restartMode;
+    if (mode) {
+      dialog.close();
+      activateMode(mode);
+    }
+    if (freshMode) showRestart(freshMode);
+    if (restartMode) {
+      dialog.close();
+      activateMode(restartMode, true);
+    }
+    if (action === "modes") showModes();
+    if (action === "chapter") openDialog(chapterBriefMarkup(APP_DATA, game));
+    if (action === "learn") {
+      let finished = false;
+      try {
+        finished = Boolean(
+          loadModeGame(APP_DATA, source, "tutorial")?.finished,
+        );
+      } catch {}
+      dialog.close();
+      activateMode("tutorial", finished);
+    }
+    if (action === "retry") {
+      game = retryRound(game);
+      resetView();
+      render();
+      dialog.close();
+      notify("이번 장의 시작 편성으로 돌아왔습니다.");
+    }
     if (action === "close") dialog.close();
     if (action === "restart") {
       startNewGame(game.capacityPerPerson);
@@ -570,14 +793,11 @@ function selectRegion(id, focus = false) {
   }
   renderMap();
   renderOrders();
+  renderExperience();
 }
 function startNewGame(capacityPerPerson) {
-  game = createGame(APP_DATA, source, { capacityPerPerson });
-  selectedTerritory = "t_kim_yonghun";
-  selectedRegion = "11680";
-  regionTarget = "";
-  staffDonor = "";
-  view = { x: 0, y: 0, w: 1000, h: 740 };
+  game = createGame(APP_DATA, source, { capacityPerPerson, mode: game.mode });
+  resetView();
   render();
 }
 function setView() {
@@ -603,9 +823,9 @@ function zoom(factor, clientX, clientY) {
 }
 function save() {
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(game));
+    saveModeGame(game);
     $("#save-status").textContent =
-      "✓ 이 브라우저에 자동 저장 · 업무 원본과 별도 보관";
+      `✓ ${GAME_MODES[game.mode]} 자동 저장 · 모드별 별도 보관`;
   } catch {
     $("#save-status").textContent =
       "저장 공간을 사용할 수 없습니다 · 훈련안을 내보내 보관하세요";
@@ -619,22 +839,22 @@ function notify(message) {
     $("#game-toast").hidden = true;
   }, 3600);
 }
-function openDialog(content) {
+function openDialog(content, wide = false) {
+  dialog.classList.toggle("wide-dialog", wide);
   $("#dialog-content").innerHTML = content;
   if (!dialog.open) dialog.showModal();
 }
-function showRestart() {
+function showRestart(mode = game.mode) {
   openDialog(
-    `<span class="overline">NEW CAMPAIGN</span><h2 id="dialog-title">작전 지도를 다시 펼칠까요?</h2><p>현재 게임 진행을 초기화하고 권역조정4(8월 버전)의 첫 분기부터 시작합니다. 필요하면 먼저 훈련안을 내보내 보관하세요.</p><div class="dialog-actions"><button class="action-button" data-dialog-action="close">계속 플레이</button><button class="gold-button" data-dialog-action="restart">새 작전 시작 →</button></div>`,
+    `<span class="overline">NEW GAME · ${GAME_MODES[mode]}</span><h2 id="dialog-title">${GAME_MODES[mode]}를 새로 시작할까요?</h2><p>이 모드의 진행을 초기화하고 8월 편성부터 시작합니다. 다른 모드와 업무 시나리오는 그대로 보관됩니다.</p><div class="dialog-actions"><button class="action-button" data-dialog-action="modes">모드 선택으로</button><button class="gold-button" data-restart-mode="${mode}">새 작전 시작 →</button></div>`,
   );
 }
 function showRules() {
-  openDialog(
-    `<span class="overline">TRAINING RULES · 읽고 나면 더 잘 보이는 한 수</span><h2 id="dialog-title">게임의 가정과 판단 기준</h2><p>실제 2025년 금액과 8월 권역 편성 위에서, 가상의 인력을 배치하는 훈련입니다. 한 사람은 명령 한 번으로 이동합니다.</p><div class="rules-grid"><div><span>시작 인력 · 게임 가정</span><strong>배치 46명 + 예비 3명</strong></div><div><span>1인당 연간 Capa · 게임 가정</span><strong>${million(game.capacityPerPerson)}백만원</strong></div><div><span>훈련 범위</span><strong>배정된 85개 지역</strong></div><div><span>작전 기간</span><strong>3분기 × 명령 6회</strong></div></div><p class="rules-detail">업무량은 <b>정상 시공비 금액을 대리 지표</b>로 사용합니다. 월 수치는 연간 금액 ÷ 12의 환산값입니다. 실제 월별 물량·소요시간·이동거리·품질은 반영하지 않았습니다. 미배정 165개 지역은 훈련 범위 밖입니다.</p><p class="rules-detail"><b>운영 점수 = 업무 커버율 45% + 인력 균형 35% + 인력 효율 20%</b><br>커버율은 각 권역의 업무 중 Capa로 감당할 수 있는 비중입니다. 균형은 전체 평균 가동률에서 벗어난 업무량을, 효율은 투입 Capa 대비 업무량을 평가합니다. 매출 자체가 증가하는 게임은 아닙니다.</p><p class="rules-detail">2분기는 서울 +12%, 3분기는 서울 원복·경기 +10%의 가상 수요 사건을 적용합니다. 실제 인원 값은 복원 자료에 없어 게임용으로 설정했습니다. 원본 시나리오·금액은 게임 플레이로 변경되지 않습니다.</p><form class="rules-form"><label for="capacity-assumption">1인당 연간 Capa 변경 · 새 게임에 적용</label><div class="input-row"><input class="rules-input" id="capacity-assumption" type="number" min="1" max="200" step="1" value="${game.capacityPerPerson / 1_000_000}" required><span>백만원 / 인·년</span></div><div class="dialog-actions"><button type="button" class="action-button" data-dialog-action="close">계속 플레이</button><button type="submit" class="gold-button">이 가정으로 새 작전 →</button></div></form>`,
-  );
+  openDialog(rulesMarkup(game));
 }
 function showReport(report) {
   const finished = game.finished;
+  const free = game.mode === "open";
   const averageScore = Math.round(
     game.reports.reduce((s, r) => s + r.score, 0) / game.reports.length,
   );
@@ -647,7 +867,7 @@ function showReport(report) {
           ? "성장하는 전략가"
           : "다음 한 수를 준비하는 지휘관";
   openDialog(
-    `<span class="overline">${finished ? "CAMPAIGN COMPLETE" : `QUARTER ${report.round} · OPERATIONS REPORT`}</span><h2 id="dialog-title">${finished ? "세 번의 선택, 하나의 운영 철학" : `${report.round}분기 작전 결산`}</h2><div class="report-score"><strong>${finished ? averageScore : report.score}</strong><span>${finished ? "3개 분기 평균 운영 점수" : "이번 분기 운영 점수"}</span></div>${finished ? `<div class="result-badge">✦ ${badge} ✦</div>` : ""}<div class="report-columns"><div><span>업무 커버율</span><strong>${report.coverage.toFixed(1)}%</strong></div><div><span>인력 균형</span><strong>${report.balance.toFixed(0)}점</strong></div><div><span>과부하 권역</span><strong>${report.overloaded}개</strong></div></div><p class="report-note">${report.overloaded ? `아직 ${report.overloaded}개 권역에 Capa를 넘는 업무가 있습니다. 전체 인원이 충분해도 배치가 고르지 않으면 감당하지 못하는 일이 생깁니다.` : "모든 권역의 업무를 커버했습니다. 인력 여유와 가동률을 함께 보며 다음 수요 변화에 대비하세요."}</p>${finished ? `<p class="score-breakdown">${game.reports.map((r) => `${r.round}분기 ${r.score}점`).join(" · ")}<br>이 결과는 게임 가정에 따른 훈련 결과입니다.</p>` : `<p>다음 분기: <b>${esc(ROUND_EVENTS[game.round - 1].title)}</b><br>${esc(ROUND_EVENTS[game.round - 1].description)} 결산한 분기의 명령은 확정되었습니다.</p>`}<div class="dialog-actions">${finished ? `<button class="action-button" data-dialog-action="export">훈련안 내보내기</button><button class="gold-button" data-dialog-action="close">결과 지도 살펴보기 →</button>` : `<button class="gold-button" data-dialog-action="close">${game.round}분기 작전 시작 →</button>`}</div>`,
+    `<span class="overline">${finished ? "STORY COMPLETE" : free ? "OPEN PLAY · EXPERIMENT LOG" : `CHAPTER ${report.round} COMPLETE`}</span><h2 id="dialog-title">${finished ? "세 번의 선택, 하나의 운영 철학" : free ? `${report.round}턴 자유 실험 기록` : `${report.round}장 목표 달성`}</h2><div class="report-score"><strong>${finished ? averageScore : report.score}</strong><span>${finished ? "3개 장 평균 운영 점수" : "이번 턴 운영 점수"}</span></div>${finished ? `<div class="result-badge">✦ ${badge} ✦</div>` : ""}<div class="report-columns"><div><span>업무 커버율</span><strong>${report.coverage.toFixed(1)}%</strong></div><div><span>인력 균형</span><strong>${report.balance.toFixed(0)}점</strong></div><div><span>과부하 권역</span><strong>${report.overloaded}개</strong></div></div>${!free && report.objectives ? `<div class="report-objectives">${report.objectives.map((o) => `<span>✓ ${esc(o.label)}</span>`).join("")}</div>` : ""}<p class="report-note">${report.overloaded ? `아직 ${report.overloaded}개 권역에 Capa를 넘는 업무가 있습니다. 전체 인원이 충분해도 배치가 고르지 않으면 감당하지 못하는 일이 생깁니다.` : "모든 권역의 업무를 커버했습니다. 인력 여유와 가동률을 함께 보며 다음 수요 변화에 대비하세요."}</p>${finished ? `<p class="score-breakdown">${game.reports.map((r) => `${r.round}장 ${r.score}점`).join(" · ")}<br>이 결과는 게임 가정에 따른 훈련 결과입니다.</p>` : `<p>${free ? "다음 수요 상황" : "다음 장의 수요"}: <b>${esc(getRoundEvent(game).title)}</b><br>${esc(getRoundEvent(game).description)}</p>`}<div class="dialog-actions">${finished ? `<button class="action-button" data-dialog-action="export">훈련안 내보내기</button><button class="gold-button" data-dialog-action="close">결과 지도 살펴보기 →</button>` : free ? `<button class="gold-button" data-dialog-action="close">계속 자유롭게 실험하기 →</button>` : `<button class="gold-button" data-dialog-action="chapter">다음 장 브리핑 →</button>`}</div>`,
   );
 }
 function exportGame() {

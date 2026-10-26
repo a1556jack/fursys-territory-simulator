@@ -22,6 +22,8 @@
       >
       <nav aria-label="게임 메뉴">
         <a href="./index.html">업무 시뮬레이터 ↗</a
+        ><button id="mode-button" class="quiet">모드 선택</button
+        ><button id="learn-button" class="quiet">플레이 방법</button
         ><button id="rules-button" class="quiet">게임 가정</button
         ><button id="export-game" class="quiet">훈련안 내보내기</button
         ><button id="restart-game" class="quiet">새 작전</button>
@@ -33,7 +35,7 @@
     <main id="game-shell" class="game-shell" hidden>
       <section class="status-strip" aria-label="작전 현황">
         <div class="campaign-label">
-          <span class="overline">CAMPAIGN 01 · 균형의 기술</span
+          <span class="overline" id="campaign-mode-label">권역지략</span
           ><strong id="round-label">제1분기</strong><span id="event-tag"></span>
         </div>
         <div class="metric score-metric">
@@ -65,13 +67,22 @@
           ><i>전체 49명 내 재배치</i>
         </div>
         <div class="turn-command">
-          <span>이번 분기 남은 명령 <b id="points-label">6 / 6</b></span>
+          <span
+            ><span id="commands-label">남은 명령</span>
+            <b id="points-label">6 / 6</b></span
+          >
           <div id="command-pips" class="command-pips"></div>
           <button id="resolve-round" class="gold-button">
             분기 결산 <span>→</span>
           </button>
         </div>
       </section>
+      <section
+        id="learning-panel"
+        class="learning-panel"
+        aria-label="진행 안내"
+        aria-live="polite"
+      ></section>
       <section class="command-layout">
         <aside class="roster-panel panel">
           <div class="panel-heading">
@@ -175,7 +186,7 @@
               <p id="advisor-text"></p>
             </section>
             <section class="mission-section">
-              <h3>이번 분기 목표</h3>
+              <h3 id="mission-heading">이번 턴 목표</h3>
               <ul id="mission-list"></ul>
             </section>
           </div>
