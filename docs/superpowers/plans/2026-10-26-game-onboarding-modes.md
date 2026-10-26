@@ -19,7 +19,7 @@ Implement the user's requested continuation of the playable prototype without an
 - [x] Implement mode engine and separate persistence with tests green.
 - [x] Add first-visit guide, mode chooser, tutorial coach/highlights, chapter briefs/objectives/retry and updated rules.
 - [x] Verify real browser first visit, skip/replay tutorial, reload mid-tutorial, both guided commands, mode isolation, story objectives/retry and open fourth turn, narrow layout and console.
-- [ ] Independent review, relevant regression tests, commit/push and public Pages verification.
+- [x] Independent review, relevant regression tests, commit/push and public Pages verification.
 
 ## Evidence and review
 
@@ -28,3 +28,4 @@ Implement the user's requested continuation of the playable prototype without an
 - Fresh gpt-6-astra review found malformed restored report objectives could break the final dialog. Regression observed RED (missing expected exception), then validation implemented and tests GREEN.
 - Minor deferred: tutorial save stages are range-checked but not exhaustively reconciled with historic commands; open save rounds have a generous finite bound of 100000. Neither affects the verified normal-play flows.
 - Review set aside visual/mobile behavior (verified separately above) and universal feasibility from every possible prior-chapter solution. Current chapters have a proven real-command solution, configurable hints, current-chapter retries and a full story restart.
+- Delivery: implementation commit 11f2e82 pushed to main. Pages run 40270760541 completed successfully. Public first-visit guide, both tutorial commands with mid-tutorial reload, three-mode picker and story objective gate PASS; browser console had zero errors/warnings. New game-saves.mjs returned HTTP 200.
