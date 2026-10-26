@@ -48,7 +48,7 @@ Files: app/game.html, app/game.css, app/game.mjs, app/assets/territory-command.p
 
 - [x] Run engine and existing app/storage tests. Verify real UI gameplay, reload, dialog, map, report and export on desktop and narrow viewport.
 - [x] Obtain a fresh review, fix important findings, and document art provenance and assumptions.
-- [ ] Commit, fast-forward main, push, confirm Pages deployment and external game route.
+- [x] Commit, fast-forward main, push, confirm Pages deployment and external game route.
 
 ## Verification record
 
@@ -57,3 +57,4 @@ Files: app/game.html, app/game.css, app/game.mjs, app/assets/territory-command.p
 - Downloaded training JSON passes original simulator validateScenario with 250 assignments and 10 territories. Source saved_scenarios.json unchanged.
 - Fresh gpt-6-astra review: two confirmed important issues (heatmap handler and untrusted undo fields) and one pointer-capture concern. Fixed all three. Undo regression observed RED (round 99), then GREEN. Real captured pointer and heatmap interaction observed failing before fixes and passing after.
 - Review set aside visual/mobile, live deployment, and actual staffing accuracy. Visual/mobile verified by the implementer in the real browser; live deployment is the final delivery check; staffing accuracy remains explicitly a training assumption in the UI.
+- Delivery: implementation commit ecbb114 pushed to main. GitHub Pages run 40266094224 completed successfully. Public game.html and generated art returned HTTP 200; real public-browser staffing command, save/reload, undo, heatmap, and all 85 regions passed; console had zero errors/warnings.
